@@ -1,0 +1,35 @@
+variables:
+    GITLAB_RUNNER_HOME: '/home/gitlab-runner'
+    DOCKER_REGISTRY: 'localhost:5000'
+    
+stages:
+    - build
+    - code_quality
+
+buildig_project:
+    stage: build
+    script:
+     # shows build path
+     - echo $CI_PROJECT_DIR
+     # builds docker image with wildfly and requirements to build artifacts
+     - docker build --tag $DOCKER_REGISTRY/wildfly:latest -f ci/wildfly.Dockerfile .
+     # runs a container with the entrypoint 'gradlew clean build' and mounts gitla-runner gradle's home dir to reuse dependencies
+     - docker run --rm -u wildfly --mount type=bind,src=$CI_PROJECT_DIR,dst=/opt/code --mount type=bind,src=$GITLAB_RUNNER_HOME/.gradle,dst=/opt/gradle -w /opt/code $DOCKER_REGISTRY/wildfly:latest
+    artifacts:
+      paths:
+       # takes artifacts to next stage on the pipeline
+        - path/to/artifact.war
+    when: always
+    only:
+     # executes the build on every push to the branch: 
+     - /^feature.*$/
+     
+SonarQube:
+    stage: code_quality  
+    image: localhost:5000/sonar-scanner  
+    variables:  
+     SONAR_PROJECT_KEY: "<YOUR PROJECT KEY>"  
+     SONAR_PROJECT_NAME: "$CI_PROJECT_NAME"  
+     SONAR_PROJECT_VERSION: "$CI_BUILD_ID"  
+    script:  
+     - /usr/bin/sonar-scanner-run.sh  
